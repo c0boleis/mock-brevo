@@ -1,0 +1,46 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: mock-brevo
+
+  datasource:
+    url: jdbc:h2:file:${MOCK_BREVO_DB_PATH:./data/brevo};MODE=LEGACY
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+    open-in-view: false
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jackson:
+    default-property-inclusion: non_null
+
+mock-brevo:
+  reveal-keys: ${MOCK_STATUS_REVEAL_KEYS:true}
+  default-webhook-url: ${MOCK_DEFAULT_WEBHOOK_URL:}
+  auto-fire-delivered: ${MOCK_AUTO_FIRE_DELIVERED:false}
+  smtp:
+    enabled: ${MOCK_SMTP_ENABLED:false}
+    host: ${MOCK_SMTP_HOST:localhost}
+    port: ${MOCK_SMTP_PORT:1025}
+    username: ${MOCK_SMTP_USERNAME:}
+    password: ${MOCK_SMTP_PASSWORD:}
+    starttls: ${MOCK_SMTP_STARTTLS:false}
+
+logging:
+  level:
+    org.enoria.mockbrevo: INFO
+    org.hibernate.SQL: WARN

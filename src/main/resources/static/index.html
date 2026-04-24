@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>mock-brevo</title>
+
+<!-- Theme bootstrap: set data-theme ASAP to avoid flash of wrong theme -->
+<script>
+  (() => {
+    try {
+      const t = localStorage.getItem('mock-brevo-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  })();
+</script>
+
+<!-- Monaco Editor loader (async CDN, resolves window.__monacoReady with monaco or null) -->
+<script>
+  window.__monacoCdn = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs';
+  window.__monacoReady = new Promise((resolve) => {
+    const s = document.createElement('script');
+    s.src = window.__monacoCdn + '/loader.js';
+    s.async = true;
+    s.onload = () => {
+      window.require.config({ paths: { vs: window.__monacoCdn } });
+      window.require(['vs/editor/editor.main'], () => resolve(window.monaco));
+    };
+    s.onerror = () => resolve(null);
+    document.head.appendChild(s);
+  });
+</script>
+
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+
+<header>
+  <h1>mock-brevo <span class="muted" id="versionBadge"></span></h1>
+  <div class="status">
+    <span class="dot" id="healthDot" title="auto-refresh"></span>
+    <span id="healthText">–</span>
+    <button id="themeToggle" class="theme-toggle" type="button" title="Basculer thème clair / sombre">
+      <span class="ic">🌙</span><span id="themeLabel">sombre</span>
+    </button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button data-tab="accounts" class="active">Comptes</button>
+  <button data-tab="requests">Appels REST</button>
+  <div class="spacer"></div>
+  <div class="controls">
+    <label><input type="checkbox" id="autoRefresh" checked> auto</label>
+    <input type="text" id="filter" placeholder="Filtrer (clé API, chemin…)">
+  </div>
+</nav>
+
+<main>
+  <section id="accounts" class="active">
+    <div class="hint">
+      Envoyez un appel vers <code>http://localhost:8080/v3/account</code> avec un header
+      <code>api-key: &lt;votre-clé&gt;</code> pour provisionner un compte.
+      Chaque nouveau compte reçoit automatiquement <strong>2 campagnes par défaut</strong>.
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Clé API</th>
+          <th>Identité</th>
+          <th>Compteurs</th>
+          <th>Créé</th>
+          <th>Vu dernier</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="accountsBody">
+        <tr><td colspan="6" class="empty">Chargement…</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="requests">
+    <div class="hint">
+      Buffer mémoire des derniers appels sur <code>/v3/**</code> et <code>/mock-webhooks/**</code>
+      (limite 500). Cliquez une ligne pour voir headers et body.
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:170px">Horodatage</th>
+          <th style="width:80px">Méthode</th>
+          <th>Chemin</th>
+          <th style="width:140px">Clé API</th>
+          <th style="width:70px">Status</th>
+          <th style="width:90px">Durée</th>
+          <th style="width:90px">Taille</th>
+        </tr>
+      </thead>
+      <tbody id="requestsBody">
+        <tr><td colspan="7" class="empty">Chargement…</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+
+<!-- Campaign creation modal -->
+<div id="campaign-modal" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h3>Nouvelle campagne <code id="campaign-modal-key"></code></h3>
+    <form id="campaign-form">
+      <label>Nom
+        <input name="name" maxlength="200" placeholder="Newsletter janvier 2026"/>
+        <span class="muted-hint">laissé vide → nom aléatoire</span>
+      </label>
+      <label>Sujet
+        <input name="subject" maxlength="500" placeholder="Vos dernières actualités"/>
+        <span class="muted-hint">laissé vide → sujet aléatoire</span>
+      </label>
+      <label>Statut
+        <select name="status">
+          <option value="sent" selected>sent (avec stats générées)</option>
+          <option value="draft">draft (stats nulles)</option>
+        </select>
+      </label>
+      <label>UTM campaign
+        <input name="utmCampaign" maxlength="200" placeholder="campagne-2026-q2"/>
+      </label>
+      <label>Listes (IDs CSV)
+        <input name="listIdsCsv" maxlength="200" placeholder="ex: 1,2"/>
+        <span class="muted-hint">optionnel — sépare les IDs par une virgule</span>
+      </label>
+      <div id="campaign-modal-error" class="modal-error" style="display:none"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-action" id="campaign-cancel">Annuler</button>
+        <button type="submit" class="btn-action btn-primary">Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/js/app.js" defer></script>
+</body>
+</html>

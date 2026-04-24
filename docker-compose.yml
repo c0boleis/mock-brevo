@@ -1,0 +1,26 @@
+services:
+  mock-brevo:
+    build: .
+    image: mock-brevo:latest
+    container_name: mock-brevo
+    ports:
+      - "${MOCK_BREVO_PORT:-8080}:8080"
+    environment:
+      MOCK_BREVO_DB_PATH: /app/data/brevo
+      MOCK_STATUS_REVEAL_KEYS: "true"
+      MOCK_DEFAULT_WEBHOOK_URL: "${MOCK_DEFAULT_WEBHOOK_URL:-}"
+      MOCK_AUTO_FIRE_DELIVERED: "${MOCK_AUTO_FIRE_DELIVERED:-false}"
+      # SMTP forward: relay POST /v3/smtp/email to a real SMTP catcher
+      # for visual inspection (Mailpit/Mailcatcher/etc.)
+      MOCK_SMTP_ENABLED: "${MOCK_SMTP_ENABLED:-false}"
+      MOCK_SMTP_HOST: "${MOCK_SMTP_HOST:-mailcatcher}"
+      MOCK_SMTP_PORT: "${MOCK_SMTP_PORT:-1025}"
+      MOCK_SMTP_USERNAME: "${MOCK_SMTP_USERNAME:-}"
+      MOCK_SMTP_PASSWORD: "${MOCK_SMTP_PASSWORD:-}"
+      MOCK_SMTP_STARTTLS: "${MOCK_SMTP_STARTTLS:-false}"
+    volumes:
+      - brevo-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  brevo-data:

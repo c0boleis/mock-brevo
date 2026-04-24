@@ -1,0 +1,20 @@
+# Dev profile — auto-activated by ./mvnw spring-boot:run (see pom.xml).
+# Not loaded when running the packaged jar in prod/Docker (default profile stays
+# 'default', so SMTP forward remains opt-in via MOCK_SMTP_* env vars).
+mock-brevo:
+  smtp:
+    enabled: ${MOCK_SMTP_ENABLED:true}
+    # Points at Mailpit's SMTP port. Assumes port 1025 is exposed on the host.
+    # If Mailpit runs inside Enoria's Docker without host port mapping, add the
+    # following to enoria/docker-compose.override.yml under services.mailcatcher:
+    #   ports:
+    #     - "127.0.0.1:1025:1025"
+    host: ${MOCK_SMTP_HOST:localhost}
+    port: ${MOCK_SMTP_PORT:1025}
+    username: ${MOCK_SMTP_USERNAME:}
+    password: ${MOCK_SMTP_PASSWORD:}
+    starttls: ${MOCK_SMTP_STARTTLS:false}
+
+logging:
+  level:
+    org.enoria.mockbrevo.smtp: DEBUG
