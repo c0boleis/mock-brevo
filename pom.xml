@@ -13,7 +13,7 @@
 
     <groupId>org.enoria</groupId>
     <artifactId>mock-brevo</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
     <name>mock-brevo</name>
     <description>Local mock of the Brevo API for Enoria dev &amp; integration tests</description>
 
