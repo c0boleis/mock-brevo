@@ -6,7 +6,7 @@ COPY src ./src
 RUN mvn -B -DskipTests package && \
     cp target/mock-brevo-*.jar target/mock-brevo.jar
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 # OCI labels — GitHub Packages links the image back to the repo when `source` matches
