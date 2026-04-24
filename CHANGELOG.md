@@ -7,6 +7,12 @@ reaches 1.0.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-24
+
+add scripts for: 
+- change version
+- deploy
+
 ## [0.1.0] — 2026-04-24
 
 Initial public release. Scope: cover the Brevo REST endpoints actively used by
