@@ -59,6 +59,15 @@
 </nav>
 
 <main>
+  <!-- Deep-link detail banner (shown when URL is /marketing-campaign/edit/X or /contact/list/id/X) -->
+  <section id="deepLinkView" style="display:none">
+    <div class="deep-header">
+      <a href="/" class="btn-action" title="Retour à l'accueil">← Accueil</a>
+      <div id="deepLinkTitle">Chargement…</div>
+    </div>
+    <div id="deepLinkBody"></div>
+  </section>
+
   <section id="accounts" class="active">
     <div class="hint">
       Envoyez un appel vers <code>http://localhost:8080/v3/account</code> avec un header

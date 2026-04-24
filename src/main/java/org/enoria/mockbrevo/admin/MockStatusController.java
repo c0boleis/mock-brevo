@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -68,6 +69,59 @@ public class MockStatusController {
         this.campaignFaker = campaignFaker;
     }
 
+    @GetMapping("/accounts/{apiKey}/campaigns")
+    public ResponseEntity<Map<String, Object>> accountCampaigns(@PathVariable String apiKey) {
+        return accounts.findByApiKey(apiKey)
+                .map(account -> {
+                    var page = campaigns.findByAccountOrderByIdDesc(account, PageRequest.of(0, 200));
+                    List<Map<String, Object>> items = page.getContent().stream()
+                            .map(c -> {
+                                Map<String, Object> m = new LinkedHashMap<>();
+                                m.put("id", c.getId());
+                                m.put("name", c.getName());
+                                m.put("subject", c.getSubject());
+                                m.put("status", c.getStatus());
+                                m.put("sentDate", c.getSentDate() != null ? c.getSentDate().toString() : null);
+                                m.put("createdAt", c.getCreatedAt() != null ? c.getCreatedAt().toString() : null);
+                                m.put("deliveredCount", c.getDeliveredCount());
+                                m.put("utmCampaign", c.getUtmCampaign());
+                                return m;
+                            })
+                            .toList();
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("count", page.getTotalElements());
+                    body.put("campaigns", items);
+                    return ResponseEntity.ok(body);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/accounts/{apiKey}/lists")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> accountLists(@PathVariable String apiKey) {
+        return accounts.findByApiKey(apiKey)
+                .map(account -> {
+                    var page = lists.findByAccountOrderByIdAsc(account, PageRequest.of(0, 200));
+                    List<Map<String, Object>> items = page.getContent().stream()
+                            .map(l -> {
+                                Map<String, Object> m = new LinkedHashMap<>();
+                                m.put("id", l.getId());
+                                m.put("name", l.getName());
+                                m.put("folderId", l.getFolder() != null ? l.getFolder().getId() : null);
+                                m.put("folderName", l.getFolder() != null ? l.getFolder().getName() : null);
+                                long subs = contacts.countByAccountAndListsContaining(account, l);
+                                m.put("uniqueSubscribers", subs);
+                                return m;
+                            })
+                            .toList();
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("count", page.getTotalElements());
+                    body.put("lists", items);
+                    return ResponseEntity.ok(body);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PostMapping("/accounts/{apiKey}/campaigns")
     public ResponseEntity<Map<String, Object>> createCampaign(
             @PathVariable String apiKey,
@@ -97,6 +151,78 @@ public class MockStatusController {
         public String utmCampaign;
         public String listIdsCsv;
         public String status;
+    }
+
+    // ---- Deep-link detail endpoints (for /marketing-campaign/edit/{id} etc.) ----
+
+    @GetMapping("/campaigns/{id}")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> campaignDetail(@PathVariable Long id) {
+        return campaigns.findById(id)
+                .map(c -> {
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("id", c.getId());
+                    body.put("name", c.getName());
+                    body.put("subject", c.getSubject());
+                    body.put("status", c.getStatus());
+                    body.put("utmCampaign", c.getUtmCampaign());
+                    body.put("templateId", c.getTemplateId());
+                    body.put("senderName", c.getSenderName());
+                    body.put("senderEmail", c.getSenderEmail());
+                    body.put("replyTo", c.getReplyTo());
+                    body.put("recipientListIdsCsv", c.getRecipientListIdsCsv());
+                    body.put("createdAt", c.getCreatedAt() != null ? c.getCreatedAt().toString() : null);
+                    body.put("sentDate", c.getSentDate() != null ? c.getSentDate().toString() : null);
+                    body.put("deliveredCount", c.getDeliveredCount());
+                    Account a = c.getAccount();
+                    body.put("account", Map.of(
+                            "apiKeyPreview", maskKey(a.getApiKey()),
+                            "apiKey", properties.isRevealKeys() ? a.getApiKey() : null,
+                            "email", a.getEmail(),
+                            "firstName", a.getFirstName(),
+                            "lastName", a.getLastName(),
+                            "organizationId", a.getOrganizationId() != null ? a.getOrganizationId() : ""
+                    ));
+                    return ResponseEntity.ok(body);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/lists/{id}")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> listDetail(@PathVariable Long id) {
+        return lists.findById(id)
+                .map(l -> {
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("id", l.getId());
+                    body.put("name", l.getName());
+                    Long folderId = l.getFolder() != null ? l.getFolder().getId() : 0L;
+                    body.put("folderId", folderId);
+                    body.put("folderName", l.getFolder() != null ? l.getFolder().getName() : null);
+                    Account a = l.getAccount();
+                    body.put("account", Map.of(
+                            "apiKeyPreview", maskKey(a.getApiKey()),
+                            "apiKey", properties.isRevealKeys() ? a.getApiKey() : null,
+                            "email", a.getEmail(),
+                            "firstName", a.getFirstName(),
+                            "lastName", a.getLastName()
+                    ));
+                    List<Map<String, Object>> contactList = contacts.findByListsContainingOrderByIdAsc(l).stream()
+                            .map(c -> {
+                                Map<String, Object> m = new LinkedHashMap<>();
+                                m.put("id", c.getId());
+                                m.put("email", c.getEmail());
+                                m.put("firstName", c.getFirstName());
+                                m.put("lastName", c.getLastName());
+                                m.put("emailBlacklisted", c.isEmailBlacklisted());
+                                return m;
+                            })
+                            .toList();
+                    body.put("contactsCount", contactList.size());
+                    body.put("contacts", contactList);
+                    return ResponseEntity.ok(body);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/requests")

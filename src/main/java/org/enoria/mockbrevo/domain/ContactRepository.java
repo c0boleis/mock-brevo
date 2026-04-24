@@ -13,6 +13,8 @@ public interface ContactRepository extends JpaRepository<Contact, Long> {
 
     Page<Contact> findByAccountAndListsContainingOrderByIdAsc(Account account, ContactList list, Pageable pageable);
 
+    List<Contact> findByListsContainingOrderByIdAsc(ContactList list);
+
     long countByAccount(Account account);
 
     long countByAccountAndListsContaining(Account account, ContactList list);

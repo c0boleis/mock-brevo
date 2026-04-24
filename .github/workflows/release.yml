@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   publish:
-    name: Build & push multi-arch image to GHCR
+    name: Build & push multi-arch image to GHCR and Docker Hub
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -45,11 +45,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Compute image tags and labels
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: |
+            ghcr.io/${{ github.repository }}
+            docker.io/cboleis/mock-brevo
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -81,3 +89,12 @@ jobs:
 
       - name: Image digest
         run: echo "Pushed digest=${{ steps.build.outputs.digest }}"
+
+      - name: Sync README to Docker Hub
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: cboleis/mock-brevo
+          short-description: "Local mock of the Brevo (ex-Sendinblue) transactional API. Not affiliated with Brevo SAS."
+          readme-filepath: ./README.md

@@ -271,6 +271,9 @@
     return haystacks.some(h => String(h || '').toLowerCase().includes(q));
   };
 
+  // Which accounts currently have their drilldown row expanded (key = apiKey, value = 'campaigns' | 'lists' | null)
+  const accountDrilldown = new Map();
+
   const renderAccounts = (data) => {
     const tbody = $('#accountsBody');
     const rows = (data.accounts || []).filter(a =>
@@ -281,19 +284,42 @@
     }
     tbody.innerHTML = rows.map(a => {
       const c = a.counters || {};
-      const cells = ['emailsSent', 'contacts', 'lists', 'campaigns', 'templates', 'folders', 'senders']
-        .map(k => {
-          const v = c[k] || 0;
-          return `<span class="counter ${v === 0 ? 'zero' : ''}">${k}:${v}</span>`;
-        }).join('');
+      const apiKeyAttr = a.apiKey ? esc(a.apiKey) : '';
+      const counterItems = [
+        { k: 'emailsSent', label: 'emailsSent' },
+        { k: 'contacts',   label: 'contacts' },
+        { k: 'lists',      label: 'lists',     drill: 'lists' },
+        { k: 'campaigns',  label: 'campaigns', drill: 'campaigns' },
+        { k: 'templates',  label: 'templates' },
+        { k: 'folders',    label: 'folders' },
+        { k: 'senders',    label: 'senders' },
+      ];
+      const cells = counterItems.map(item => {
+        const v = c[item.k] || 0;
+        const zero = v === 0 ? ' zero' : '';
+        if (item.drill && a.apiKey && v > 0) {
+          const openNow = accountDrilldown.get(a.apiKey) === item.drill;
+          return `<button type="button" class="counter counter-drill${zero}${openNow ? ' open' : ''}"
+            data-drill="${item.drill}" data-api-key="${apiKeyAttr}"
+            title="Afficher ${item.label}">${item.label}:${v}</button>`;
+        }
+        return `<span class="counter${zero}">${item.label}:${v}</span>`;
+      }).join('');
       const key = a.apiKey
         ? `<code>${esc(a.apiKey)}</code>`
         : `<code>${esc(a.apiKeyPreview)}</code> <span class="muted">masquée</span>`;
       const acct = a.account || {};
-      const apiKeyAttr = a.apiKey ? esc(a.apiKey) : '';
       const actions = a.apiKey
         ? `<button class="btn-action" data-new-campaign-for="${apiKeyAttr}" title="Créer une nouvelle campagne">+ Campagne</button>`
         : `<span class="muted">clé masquée</span>`;
+      const drill = a.apiKey ? accountDrilldown.get(a.apiKey) : null;
+      const drillRow = drill
+        ? `<tr class="drill-row" data-for="${apiKeyAttr}"><td colspan="6">
+            <div class="drill-wrap" data-api-key="${apiKeyAttr}" data-kind="${drill}">
+              <div class="muted" style="padding:12px">Chargement…</div>
+            </div>
+          </td></tr>`
+        : '';
       return `
         <tr>
           <td>${key}</td>
@@ -305,12 +331,101 @@
           <td class="mono muted" title="${esc(a.createdAt)}">${fmtRelative(a.createdAt)}</td>
           <td class="mono muted" title="${esc(a.lastSeenAt)}">${fmtRelative(a.lastSeenAt)}</td>
           <td>${actions}</td>
-        </tr>`;
+        </tr>${drillRow}`;
     }).join('');
 
     tbody.querySelectorAll('[data-new-campaign-for]').forEach(btn => {
       btn.addEventListener('click', () => openCampaignModal(btn.dataset.newCampaignFor));
     });
+
+    tbody.querySelectorAll('.counter-drill').forEach(btn => {
+      btn.addEventListener('click', () => toggleAccountDrill(btn.dataset.apiKey, btn.dataset.drill));
+    });
+
+    // Populate any drill rows still showing "Chargement…"
+    tbody.querySelectorAll('.drill-wrap').forEach(el => {
+      if (!el.dataset.loaded) {
+        loadDrilldown(el.dataset.apiKey, el.dataset.kind, el);
+      }
+    });
+  };
+
+  const toggleAccountDrill = (apiKey, kind) => {
+    const current = accountDrilldown.get(apiKey);
+    if (current === kind) {
+      accountDrilldown.delete(apiKey);
+    } else {
+      accountDrilldown.set(apiKey, kind);
+    }
+    refresh();
+  };
+
+  const loadDrilldown = async (apiKey, kind, container) => {
+    container.dataset.loaded = '1';
+    const url = '/mock-status/accounts/' + encodeURIComponent(apiKey) + '/' + kind;
+    try {
+      const data = await fetchJson(url);
+      if (kind === 'campaigns') {
+        container.innerHTML = renderAccountCampaigns(data);
+      } else if (kind === 'lists') {
+        container.innerHTML = renderAccountLists(data);
+      }
+    } catch (e) {
+      container.innerHTML = `<div class="muted" style="padding:12px;color:var(--err)">Erreur: ${esc(e.message)}</div>`;
+    }
+  };
+
+  const renderAccountCampaigns = (data) => {
+    const items = data.campaigns || [];
+    if (!items.length) {
+      return '<div class="empty" style="padding:16px">Aucune campagne.</div>';
+    }
+    const rows = items.map(c => `
+      <tr>
+        <td class="mono muted">#${esc(c.id)}</td>
+        <td><a href="/marketing-campaign/edit/${esc(c.id)}" class="deep-link">${esc(c.name || '(sans nom)')}</a></td>
+        <td class="muted">${esc(c.subject || '')}</td>
+        <td><span class="badge status-${esc(c.status || 'draft')}">${esc(c.status || 'draft')}</span></td>
+        <td class="mono muted">${c.deliveredCount != null ? esc(c.deliveredCount) : '—'}</td>
+        <td class="mono muted">${esc(c.utmCampaign || '')}</td>
+        <td class="mono muted" title="${esc(c.sentDate || '')}">${c.sentDate ? fmtRelative(c.sentDate) : '<span class="muted">jamais envoyée</span>'}</td>
+      </tr>
+    `).join('');
+    return `
+      <div class="drill-inner">
+        <div class="drill-title">Campagnes (${esc(data.count)}) — cliquer sur le nom pour ouvrir la vue détail</div>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Nom</th><th>Sujet</th><th>Statut</th><th>Delivered</th><th>UTM</th><th>Envoyée</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  };
+
+  const renderAccountLists = (data) => {
+    const items = data.lists || [];
+    if (!items.length) {
+      return '<div class="empty" style="padding:16px">Aucune liste.</div>';
+    }
+    const rows = items.map(l => `
+      <tr>
+        <td class="mono muted">#${esc(l.id)}</td>
+        <td><a href="/contact/list/id/${esc(l.id)}" class="deep-link">${esc(l.name || '(sans nom)')}</a></td>
+        <td class="mono muted">${esc(l.uniqueSubscribers)}</td>
+        <td class="muted">${l.folderName ? esc(l.folderName) + ' <span class="muted">#' + esc(l.folderId) + '</span>' : '<span class="muted">—</span>'}</td>
+      </tr>
+    `).join('');
+    return `
+      <div class="drill-inner">
+        <div class="drill-title">Listes (${esc(data.count)}) — cliquer sur le nom pour ouvrir la vue détail</div>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Nom</th><th>Contacts</th><th>Dossier</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   };
 
   // ============================================================
@@ -602,6 +717,168 @@
   });
 
   // ============================================================
+  // DEEP-LINK VIEW (Brevo-shaped URLs: /marketing-campaign/edit/X, /contact/list/id/X)
+  // ============================================================
+  const deepLinkView = $('#deepLinkView');
+  const deepLinkTitle = $('#deepLinkTitle');
+  const deepLinkBody = $('#deepLinkBody');
+
+  const renderCampaignDeep = (c) => {
+    const statusCls = 'status-' + (c.status || 'draft').toLowerCase();
+    const recipientIds = (c.recipientListIdsCsv || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    const recipientLinks = recipientIds.length
+      ? recipientIds.map(id => `<a href="/contact/list/id/${esc(id)}">${esc(id)}</a>`).join(', ')
+      : '<span class="muted">—</span>';
+    const deliveredValue = c.deliveredCount != null ? c.deliveredCount : 0;
+    const apiKeyDisplay = c.account.apiKey
+      ? `<code>${esc(c.account.apiKey)}</code>`
+      : `<code>${esc(c.account.apiKeyPreview)}</code> <span class="muted">masquée</span>`;
+
+    return `
+      <div class="deep-card">
+        <h2>
+          <span>${esc(c.name)}</span>
+          <span class="id">#${esc(c.id)}</span>
+          <span class="badge ${statusCls}">${esc(c.status || 'draft')}</span>
+        </h2>
+        <div class="subtitle">${esc(c.subject || '(pas de sujet)')}</div>
+        <div class="kv">
+          <div class="k">Compte</div>
+          <div class="v">${apiKeyDisplay} · ${esc(c.account.firstName || '')} ${esc(c.account.lastName || '')} · ${esc(c.account.email)}</div>
+          <div class="k">Expéditeur</div>
+          <div class="v">${esc(c.senderName || '—')} &lt;${esc(c.senderEmail || '—')}&gt;</div>
+          <div class="k">Reply-to</div>
+          <div class="v">${esc(c.replyTo || '—')}</div>
+          <div class="k">Template</div>
+          <div class="v">${c.templateId ? '#' + esc(c.templateId) : '<span class="muted">aucun</span>'}</div>
+          <div class="k">UTM</div>
+          <div class="v">${esc(c.utmCampaign || '—')}</div>
+          <div class="k">Listes cibles</div>
+          <div class="v">${recipientLinks}</div>
+          <div class="k">Créée</div>
+          <div class="v">${esc(c.createdAt || '—')}</div>
+          <div class="k">Envoyée</div>
+          <div class="v">${c.sentDate ? esc(c.sentDate) : '<span class="muted">jamais</span>'}</div>
+        </div>
+        <div class="section-title">Statistiques</div>
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-label">Delivered</div><div class="stat-value">${deliveredValue}</div></div>
+          <div class="stat"><div class="stat-label">Status</div><div class="stat-value">${esc(c.status || 'draft')}</div></div>
+        </div>
+        <div class="section-title">Liens utiles</div>
+        <div>
+          <a class="btn-action" href="/" title="Accueil">UI principale</a>
+          <a class="btn-action" href="/mock-status" target="_blank" rel="noopener">/mock-status</a>
+          <a class="btn-action doc-link" href="https://developers.brevo.com/reference/getemailcampaign" target="_blank" rel="noopener">Documentation Brevo ↗</a>
+        </div>
+      </div>`;
+  };
+
+  const renderListDeep = (l) => {
+    const apiKeyDisplay = l.account.apiKey
+      ? `<code>${esc(l.account.apiKey)}</code>`
+      : `<code>${esc(l.account.apiKeyPreview)}</code> <span class="muted">masquée</span>`;
+    const folderInfo = l.folderId
+      ? `#${esc(l.folderId)} — ${esc(l.folderName || '')}`
+      : '<span class="muted">aucun</span>';
+    const contactRows = (l.contacts || []).map(c => `
+      <tr>
+        <td class="mono muted">#${esc(c.id)}</td>
+        <td class="mono">${esc(c.email)}</td>
+        <td>${esc(c.firstName || '')} ${esc(c.lastName || '')}</td>
+        <td>${c.emailBlacklisted ? '<span class="badge" style="color:var(--err);border-color:var(--err)">blacklisted</span>' : ''}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="deep-card">
+        <h2>
+          <span>${esc(l.name)}</span>
+          <span class="id">#${esc(l.id)}</span>
+        </h2>
+        <div class="subtitle">${esc(l.contactsCount)} contact(s)</div>
+        <div class="kv">
+          <div class="k">Compte</div>
+          <div class="v">${apiKeyDisplay} · ${esc(l.account.firstName || '')} ${esc(l.account.lastName || '')} · ${esc(l.account.email)}</div>
+          <div class="k">Dossier</div>
+          <div class="v">${folderInfo}</div>
+        </div>
+        <div class="section-title">Contacts (${esc(l.contactsCount)})</div>
+        ${contactRows ? `
+          <table>
+            <thead>
+              <tr><th style="width:60px">ID</th><th>Email</th><th>Nom</th><th style="width:120px"></th></tr>
+            </thead>
+            <tbody>${contactRows}</tbody>
+          </table>
+        ` : '<div class="empty">Liste vide.</div>'}
+        <div class="section-title">Liens utiles</div>
+        <div>
+          <a class="btn-action" href="/" title="Accueil">UI principale</a>
+          <a class="btn-action doc-link" href="https://developers.brevo.com/reference/getlist" target="_blank" rel="noopener">Documentation Brevo ↗</a>
+        </div>
+      </div>`;
+  };
+
+  const renderNotFound = (what, id) => `
+    <div class="deep-not-found">
+      <strong>${esc(what)} #${esc(id)} introuvable</strong>
+      <div style="margin-top:8px">Ce compte n'a peut-être pas été provisionné dans ce mock, ou l'ID est périmé.</div>
+      <div style="margin-top:12px"><a class="btn-action btn-primary" href="/">Retour à l'accueil</a></div>
+    </div>`;
+
+  const handleDeepLink = async () => {
+    const path = window.location.pathname;
+    let match = path.match(/^\/marketing-campaign\/edit\/(\d+)\/?$/);
+    if (match) {
+      const id = match[1];
+      deepLinkTitle.textContent = `Campagne #${id}`;
+      deepLinkBody.innerHTML = '<div class="deep-card muted">Chargement…</div>';
+      deepLinkView.style.display = 'block';
+      // hide default tabs to focus on the detail view
+      document.querySelectorAll('section#accounts, section#requests, nav.tabs').forEach(el => el.style.display = 'none');
+      try {
+        const resp = await fetch('/mock-status/campaigns/' + id, { headers: { accept: 'application/json' } });
+        if (resp.status === 404) {
+          deepLinkBody.innerHTML = renderNotFound('Campagne', id);
+          return;
+        }
+        if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+        const data = await resp.json();
+        deepLinkTitle.innerHTML = `Campagne — <code>${esc(data.name || ('#' + data.id))}</code>`;
+        deepLinkBody.innerHTML = renderCampaignDeep(data);
+      } catch (e) {
+        deepLinkBody.innerHTML = `<div class="deep-not-found"><strong>Erreur</strong><div>${esc(e.message)}</div></div>`;
+      }
+      return true;
+    }
+    match = path.match(/^\/contact\/list\/id\/(\d+)\/?$/);
+    if (match) {
+      const id = match[1];
+      deepLinkTitle.textContent = `Liste de contacts #${id}`;
+      deepLinkBody.innerHTML = '<div class="deep-card muted">Chargement…</div>';
+      deepLinkView.style.display = 'block';
+      document.querySelectorAll('section#accounts, section#requests, nav.tabs').forEach(el => el.style.display = 'none');
+      try {
+        const resp = await fetch('/mock-status/lists/' + id, { headers: { accept: 'application/json' } });
+        if (resp.status === 404) {
+          deepLinkBody.innerHTML = renderNotFound('Liste', id);
+          return;
+        }
+        if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+        const data = await resp.json();
+        deepLinkTitle.innerHTML = `Liste — <code>${esc(data.name || ('#' + data.id))}</code>`;
+        deepLinkBody.innerHTML = renderListDeep(data);
+      } catch (e) {
+        deepLinkBody.innerHTML = `<div class="deep-not-found"><strong>Erreur</strong><div>${esc(e.message)}</div></div>`;
+      }
+      return true;
+    }
+    return false;
+  };
+
+  // ============================================================
   // FILTER + AUTO-REFRESH
   // ============================================================
   filterEl.addEventListener('input', () => refresh());
@@ -615,6 +892,11 @@
   };
   $('#autoRefresh').addEventListener('change', schedule);
 
-  refresh();
-  schedule();
+  // If we're on a deep-link URL, render the detail view and skip the default UI polling.
+  handleDeepLink().then(isDeep => {
+    if (!isDeep) {
+      refresh();
+      schedule();
+    }
+  });
 })();
