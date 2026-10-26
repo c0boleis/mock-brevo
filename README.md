@@ -57,6 +57,7 @@ Requires JDK 21. Maven is wrapped (`./mvnw`) — no system install needed.
 
 ```bash
 ./mvnw spring-boot:run                    # dev profile, SMTP forward ON (localhost:1025)
+./mvnw test                               # run integration/contract tests
 ./mvnw clean package -DskipTests          # → target/mock-brevo-<version>.jar
 java -jar target/mock-brevo-*.jar         # run packaged jar (default profile, SMTP OFF)
 ```

@@ -3,6 +3,7 @@ package org.enoria.mockbrevo.admin;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.enoria.mockbrevo.domain.AccountRepository;
+import org.enoria.mockbrevo.domain.ContactAttributeRepository;
 import org.enoria.mockbrevo.domain.ContactListRepository;
 import org.enoria.mockbrevo.domain.ContactRepository;
 import org.enoria.mockbrevo.domain.EmailCampaignRepository;
@@ -24,6 +25,7 @@ public class MockResetController {
     private final AccountRepository accounts;
     private final SentEmailRepository sentEmails;
     private final ContactRepository contacts;
+    private final ContactAttributeRepository attributes;
     private final ContactListRepository lists;
     private final EmailCampaignRepository campaigns;
     private final SmtpTemplateRepository templates;
@@ -35,6 +37,7 @@ public class MockResetController {
             AccountRepository accounts,
             SentEmailRepository sentEmails,
             ContactRepository contacts,
+            ContactAttributeRepository attributes,
             ContactListRepository lists,
             EmailCampaignRepository campaigns,
             SmtpTemplateRepository templates,
@@ -44,6 +47,7 @@ public class MockResetController {
         this.accounts = accounts;
         this.sentEmails = sentEmails;
         this.contacts = contacts;
+        this.attributes = attributes;
         this.lists = lists;
         this.campaigns = campaigns;
         this.templates = templates;
@@ -58,6 +62,7 @@ public class MockResetController {
         Map<String, Object> deleted = new LinkedHashMap<>();
         deleted.put("sentEmails", sentEmails.count());
         deleted.put("contacts", contacts.count());
+        deleted.put("attributes", attributes.count());
         deleted.put("lists", lists.count());
         deleted.put("campaigns", campaigns.count());
         deleted.put("templates", templates.count());
@@ -70,6 +75,8 @@ public class MockResetController {
         // join table is cleaned up by Hibernate before we drop the lists.
         sentEmails.deleteAllInBatch();
         contacts.deleteAll();
+        contacts.flush();
+        attributes.deleteAllInBatch();
         lists.deleteAllInBatch();
         campaigns.deleteAllInBatch();
         templates.deleteAllInBatch();

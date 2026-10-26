@@ -13,11 +13,14 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
 @Table(
@@ -49,6 +52,20 @@ public class Contact {
 
     @Column(nullable = false)
     private boolean emailBlacklisted = false;
+
+    @Column(nullable = false)
+    private boolean smsBlacklisted = false;
+
+    @Column(columnDefinition = "TEXT")
+    private String attributesJson;
+
+    @CreationTimestamp
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(nullable = false)
+    private Instant modifiedAt;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

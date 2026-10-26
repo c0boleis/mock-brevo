@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ContactListRepository extends JpaRepository<ContactList, Long> {
     Page<ContactList> findByAccountOrderByIdAsc(Account account, Pageable pageable);
 
+    Page<ContactList> findByAccountAndFolderOrderByIdAsc(Account account, Folder folder, Pageable pageable);
+
     Optional<ContactList> findByIdAndAccount(Long id, Account account);
 
     long countByAccount(Account account);
